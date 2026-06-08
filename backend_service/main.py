@@ -230,8 +230,11 @@ if os.path.isdir(WEB_APP_DIR):
     @app.get("/static/{filename}")
     async def serve_static(filename: str):
         filepath = os.path.join(WEB_APP_DIR, filename)
+        print(f"DEBUG: Requested static file '{filename}'. Looking at path: {filepath}")
         if os.path.isfile(filepath):
+            print(f"DEBUG: File found! Serving {filepath}")
             return FileResponse(filepath)
+        print(f"DEBUG: File NOT found at {filepath}")
         return {"error": "not found"}
 
 if __name__ == "__main__":
