@@ -40,9 +40,22 @@ last_alert_time = {}
 state_lock = Lock()
 cow_states = {}
 
+thresholds = {
+    "temp_warning_high": 39.0,
+    "temp_critical_high": 39.5,
+    "temp_warning_low": 37.5,
+    "temp_critical_low": 37.0,
+    "activity_warning_low": 40,
+    "activity_critical_low": 30,
+    "activity_warning_high": 120,
+    "activity_critical_high": 150,
+    "cooldown_sec": 30
+}
+
 def add_alert(cow_id, message, level):
     now_ms = int(time.time() * 1000)
-    if cow_id in last_alert_time and (now_ms - last_alert_time[cow_id] < 30000):
+    cooldown_ms = thresholds["cooldown_sec"] * 1000
+    if cow_id in last_alert_time and (now_ms - last_alert_time[cow_id] < cooldown_ms):
         return
 
     timestamp = datetime.datetime.now().strftime('%d.%m.%Y, %H:%M:%S')
@@ -60,27 +73,63 @@ def add_alert(cow_id, message, level):
         alerts.pop()
     last_alert_time[cow_id] = now_ms
 
+active_alerts = {}
+
+def get_cow_status(cow_id, temp, activity):
+    if temp > thresholds["temp_critical_high"] or temp < thresholds["temp_critical_low"]:
+        return {"level": "danger", "message": f"Критическая температура: {temp}°C"}
+    if activity < thresholds["activity_critical_low"] or activity > thresholds["activity_critical_high"]:
+        return {"level": "danger", "message": f"Критическая активность: {activity}"}
+    if temp > thresholds["temp_warning_high"] or temp < thresholds["temp_warning_low"]:
+        return {"level": "warning", "message": f"Повышенная температура: {temp}°C"}
+    if activity < thresholds["activity_warning_low"] or activity > thresholds["activity_warning_high"]:
+        return {"level": "warning", "message": f"Аномальная активность: {activity}"}
+    return None
+
 @app.get("/api/alerts")
 def get_alerts():
     return alerts
+
+@app.get("/api/active")
+def get_active_alerts():
+    return active_alerts
 
 @app.get("/api/cows")
 def get_cows():
     with state_lock:
         return cow_states
 
+@app.get("/api/thresholds")
+def get_thresholds():
+    return thresholds
+
+@app.post("/api/thresholds")
+async def update_thresholds(new_thresholds: dict):
+    for key in new_thresholds:
+        if key in thresholds:
+            thresholds[key] = float(new_thresholds[key])
+    return thresholds
+
 def calculate_illness_probability(temp, activity):
     prob = 0.0
 
-    if temp > 39.5:
-        prob += (temp - 39.5) * 30
-    elif temp < 37.5:
-        prob += (37.5 - temp) * 30
+    if temp > thresholds["temp_critical_high"]:
+        prob += (temp - thresholds["temp_critical_high"]) * 30
+    elif temp > thresholds["temp_warning_high"]:
+        prob += (temp - thresholds["temp_warning_high"]) * 15
+    elif temp < thresholds["temp_critical_low"]:
+        prob += (thresholds["temp_critical_low"] - temp) * 30
+    elif temp < thresholds["temp_warning_low"]:
+        prob += (thresholds["temp_warning_low"] - temp) * 15
 
-    if activity < 30:
-        prob += (30 - activity) * 1.5
-    elif activity > 150:
+    if activity < thresholds["activity_critical_low"]:
+        prob += (thresholds["activity_critical_low"] - activity) * 1.5
+    elif activity < thresholds["activity_warning_low"]:
+        prob += (thresholds["activity_warning_low"] - activity) * 0.8
+    elif activity > thresholds["activity_critical_high"]:
         prob += 10
+    elif activity > thresholds["activity_warning_high"]:
+        prob += 5
 
     return min(max(prob, 0.0), 100.0)
 
@@ -121,12 +170,23 @@ def on_message(client, userdata, msg):
         illness_prob = calculate_illness_probability(temp, activity)
         print(f"Cow {cow_id} | Temp: {temp} | Act: {activity} | Prob: {illness_prob:.1f}%")
 
+        status = get_cow_status(cow_id, temp, activity)
+        if status:
+            active_alerts[cow_id] = {
+                "cowId": cow_id,
+                "level": status["level"],
+                "message": status["message"],
+                "temperature": temp,
+                "activity": activity,
+                "illness_probability": round(illness_prob, 1),
+                "updated": datetime.datetime.now().strftime('%d.%m.%Y, %H:%M:%S')
+            }
+            add_alert(cow_id, status["message"], status["level"])
+        else:
+            active_alerts.pop(cow_id, None)
+
         if illness_prob >= 60:
             add_alert(cow_id, f"Высокая вероятность заболевания ({int(illness_prob)}%). Темп: {temp}°C, Акт: {activity}", 'danger')
-        elif temp > 39.5 or temp < 37.5:
-            add_alert(cow_id, f"Аномальная температура: {temp}°C", 'warning')
-        elif activity < 30 or activity > 150:
-            add_alert(cow_id, f"Аномальная активность: {activity}", 'warning')
 
         # Write to InfluxDB
         point = Point("cow_telemetry") \
