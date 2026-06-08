@@ -8,7 +8,6 @@ from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 import uvicorn
 from urllib.parse import urlparse
 
@@ -213,8 +212,22 @@ mqtt_client.loop_start()
 WEB_APP_DIR = os.environ.get('WEB_APP_DIR', '/app/web_app')
 
 if os.path.isdir(WEB_APP_DIR):
-    app.mount("/", StaticFiles(directory=WEB_APP_DIR, html=True), name="static")
+    from starlette.staticfiles import StaticFiles as StarletteStatic
+    app.mount("/static", StarletteStatic(directory=WEB_APP_DIR), name="static_files")
     print(f"Serving web app from {WEB_APP_DIR}")
+
+    from starlette.responses import FileResponse
+
+    @app.get("/")
+    async def serve_index():
+        return FileResponse(os.path.join(WEB_APP_DIR, "index.html"))
+
+    @app.get("/{filename}.html")
+    async def serve_page(filename: str):
+        filepath = os.path.join(WEB_APP_DIR, f"{filename}.html")
+        if os.path.isfile(filepath):
+            return FileResponse(filepath)
+        return {"error": "not found"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=3001)
