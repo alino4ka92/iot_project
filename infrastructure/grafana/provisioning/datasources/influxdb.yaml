@@ -1,0 +1,14 @@
+apiVersion: 1
+
+datasources:
+  - name: InfluxDB
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    isDefault: true
+    jsonData:
+      version: Flux
+      organization: cow_farm
+      defaultBucket: cow_metrics
+    secureJsonData:
+      token: supersecrettoken
