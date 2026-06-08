@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchAlerts() {
         try {
-            const response = await fetch('http://localhost:3001/api/alerts');
+            const response = await fetch('/api/alerts');
             if (!response.ok) throw new Error('Network response was not ok');
             const alerts = await response.json();
             
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async function fetchCowsLocation() {
                 try {
-                    const response = await fetch('http://localhost:3001/api/cows');
+                    const response = await fetch('/api/cows');
                     if (!response.ok) throw new Error('Network response was not ok');
                     const cows = await response.json();
                     

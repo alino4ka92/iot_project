@@ -8,6 +8,7 @@ from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 from urllib.parse import urlparse
 
@@ -148,6 +149,12 @@ mqtt_client.on_message = on_message
 print(f"Connecting to MQTT broker at {MQTT_HOST}:{MQTT_PORT}")
 mqtt_client.connect(MQTT_HOST, MQTT_PORT, 60)
 mqtt_client.loop_start()
+
+WEB_APP_DIR = os.environ.get('WEB_APP_DIR', '/app/web_app')
+
+if os.path.isdir(WEB_APP_DIR):
+    app.mount("/", StaticFiles(directory=WEB_APP_DIR, html=True), name="static")
+    print(f"Serving web app from {WEB_APP_DIR}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=3001)

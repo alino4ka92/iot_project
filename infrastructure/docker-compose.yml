@@ -54,12 +54,15 @@ services:
     container_name: cow_backend
     ports:
       - "3001:3001"
+    volumes:
+      - ../web_app:/app/web_app
     environment:
       - MQTT_URL=mqtt://mosquitto:1883
       - INFLUX_URL=http://influxdb:8086
       - INFLUX_TOKEN=supersecrettoken
       - INFLUX_ORG=cow_farm
       - INFLUX_BUCKET=cow_metrics
+      - WEB_APP_DIR=/app/web_app
     depends_on:
       - mosquitto
       - influxdb
