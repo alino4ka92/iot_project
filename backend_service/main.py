@@ -212,8 +212,6 @@ mqtt_client.loop_start()
 WEB_APP_DIR = os.environ.get('WEB_APP_DIR', '/app/web_app')
 
 if os.path.isdir(WEB_APP_DIR):
-    from starlette.staticfiles import StaticFiles as StarletteStatic
-    app.mount("/static", StarletteStatic(directory=WEB_APP_DIR), name="static_files")
     print(f"Serving web app from {WEB_APP_DIR}")
 
     from starlette.responses import FileResponse
@@ -225,6 +223,13 @@ if os.path.isdir(WEB_APP_DIR):
     @app.get("/{filename}.html")
     async def serve_page(filename: str):
         filepath = os.path.join(WEB_APP_DIR, f"{filename}.html")
+        if os.path.isfile(filepath):
+            return FileResponse(filepath)
+        return {"error": "not found"}
+
+    @app.get("/static/{filename}")
+    async def serve_static(filename: str):
+        filepath = os.path.join(WEB_APP_DIR, filename)
         if os.path.isfile(filepath):
             return FileResponse(filepath)
         return {"error": "not found"}
